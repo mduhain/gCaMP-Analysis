@@ -6,8 +6,12 @@ function [gfp_stack,rfp_stack] = loadImg(fileName)
     num_frames = size(imInfo,1);
     Xpx = imInfo(1).Width;
     Ypx = imInfo(1).Height;
+    try
     rfp_stack = zeros(Xpx,Ypx,floor(num_frames/2));
     gfp_stack = zeros(Xpx,Ypx,floor(num_frames/2));
+    catch
+    end
+        
     for n = 1 : floor(num_frames/2)
         gfp_stack(:,:,n) = imread(fileName,2*n-1,'Info',imInfo);
         rfp_stack(:,:,n) = imread(fileName,2*n,'Info',imInfo);

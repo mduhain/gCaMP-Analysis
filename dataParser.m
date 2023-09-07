@@ -12,12 +12,12 @@ testAllFiles = 1; %FLAG: Load each im2p file and check for accuracy;
 if ismac() == 1
     %startingDir = 'C:\Users\ramirezlab\Desktop\2P-Data';
 else
-    startingDir = 'C:\Users\skich\Documents\dataParser\2P-Data';
-    expMetaDir = 'C:\Users\skich\Documents\dataParser\Exp-Metadata';
+    %startingDir = 'C:\Users\skich\Documents\dataParser\2P-Data';
+    %expMetaDir = 'C:\Users\skich\Documents\dataParser\Exp-Metadata';
     %startingDir = 'V:\Haptics-2P\2P-Data';
     %expMetaDir = 'V:\Haptics-2P\Exp-Metadata';
-    %startingDir = 'C:\Users\scanimage\Desktop\dataParser\2P-Data';
-    %expMetaDir = 'C:\Users\scanimage\Desktop\dataParser\Exp-Metadata';
+    startingDir = 'C:\dataParser\2P-Data';
+    expMetaDir = 'C:\dataParser\Exp-Metadata';
 end
 
 specificLoadPath = 0;
@@ -42,7 +42,7 @@ for n = 1 : length(mouseNum) %mouse number loop
         [expNames,~] = analyzeDir();
         for ne = 1 : length(expNames) %experiment loop
             cd(strcat(mouseDir,'\',dates(nd),'\',expNames(ne)));
-            [~, fileNames] = analyzeDir();
+            [depths, fileNames] = analyzeDir();
             if sum(contains(fileNames,'im2p')) > 0
                 disp(strcat(mouseNum(n),'-',dates(nd),'-',expNames(ne)," im2p found."));
                 if testAllFiles == 0
@@ -145,11 +145,17 @@ for n = 1 : length(mouseNum) %mouse number loop
                     end
                 else
                     if contains(fileNames(nf),'TactileStim')
-                        fprintf(strcat("Loading ",mouseNum(n),'-',dates(nd),'-',fileNames(nf),'...'))
-                        tic;
-                        [gfpStack, rfpTrace, scanInfo] = loadExp(fileNames(nf),1);
+                        inputFiles = dir(fullfile('*.tif'));
+                        if size(inputFiles,1) > 10
+                            %function to load n# .tif files
+                            pause(1)
+                        else
+                            fprintf(strcat("Loading ",mouseNum(n),'-',dates(nd),'-',fileNames(nf),'...'))
+                            tic;
+                            [gfpStack, rfpTrace, scanInfo] = loadExp(fileNames(nf),1);
+                        end
                         fprintf(strcat(" Took ",num2str(toc)," seconds!\n"))
-                    elseif contains(fileNames(nf),'rfp-pre')
+                    elseif contains(fileNames(nf),'PV-rfp')
                         fprintf(strcat("Loading ",mouseNum(n),'-',dates(nd),'-',fileNames(nf),'...'))
                         tic;
                         rfpImagePre = loadRfpImg(fileNames(nf),1);
@@ -162,9 +168,39 @@ for n = 1 : length(mouseNum) %mouse number loop
                     end
                 end
             end %end of file loop
+            
+            for k = 1 : length(depths) %loop through different depths
+                %change to Z000 directory (depth)
+                cd(strcat(mouseDir,'\',dates(nd),'\',expNames(ne),'\',depths(k)));
+                
+                %extract gfp signals, resize 512->256 && 3frame Avg
+                gfpStack = gfpFromDir();
+                
+                %extract rfp signal (trace)
+                rfpTrace = rfpFromAllFiles();
+                
+                %save parameters into im2p
+                a = im2p;
+                
+                % back out 1 directory to 'Exp000'
+                cd(strcat(mouseDir,'\',dates(nd),'\',expNames(ne)));
+                
+                % add other params. rfp imgs, vasculature 
+                a.gfp3FrameAvg = gfpStack;
+                a.rfpExpTrace = rfpTrace;
+                
+                % save updated im2p
+                fileOutName = strcat(mouseNum(n),'-',dates(nd),'-',expNames(ne),'-',depths(k),'-im2p.mat');
+                save(fileOutName,'a','-v7.3')
+                
+                %clear workspace
+                clear a gfpStack rfpTrace
+                
+            end % end of depth loop
+                
 
             %find and add experiment metadata
-            if specificLoadPath == 1
+            if specificLoadPath == 0
                 %find and add experiment metadata
                 cd(strcat(expMetaDir,'\',mouseNum(n),'\',dates(nd),'\'));
                 [~, metaFileNames] = analyzeDir();
@@ -298,7 +334,7 @@ function [gfpStack, rfpTrace, scanInfo] = loadExp(fileName,opt)
         %populate GFP Matrix
         for n = 1 : floor(scanInfo.num_frames/6)
             if imResized == 1
-                img1 = imresize(double(imread( fileName,6*n-5,'Info',imInfo)),0.5);
+                img1 = imresize(double(imread(fileName,6*n-5,'Info',imInfo)),0.5);
                 img2 = imresize(double(imread(fileName,6*n-3,'Info',imInfo)),0.5);
                 img3 = imresize(double(imread(fileName,6*n-1,'Info',imInfo)),0.5);
                 gfpStack(:,:,n) = mean(cat(3,img1,img2,img3),3);
@@ -378,8 +414,26 @@ function [cleanStruct] = decodeCell(cellData)
 end
 
 %--------------------------------------------------------------------------
+%extrace the red frames to make a rfp trace for all files in a directory
+function [rfpTrace] = rfpFromAllFiles()
+    inputFiles = dir(fullfile('*.tif')); %find all .tif files in dir
+    fileNames = {inputFiles.name};
+    imInfo = imfinfo(fileNames{1}); %get info on first tif
+    Xpx = imInfo(1).Width; %X pixels
+    Ypx = imInfo(1).Height; %Y pixels
+    numFrames = length(inputFiles); %Num of available frames
+    rfpTrace = zeros(numFrames,1);
+    disp("extracting RFP frames...");
+    tic;
+    for k = 1 : numFrames
+        thisFileName = fileNames{k};
+        rfpImg = imread(thisFileName,2);
+        rfpTrace(k) = mean(rfpImg,'all');
+    end
+    toc;
+end
 
-
+%--------------------------------------------------------------------------
 
 
 

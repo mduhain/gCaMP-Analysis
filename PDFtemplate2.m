@@ -1,20 +1,29 @@
 %% Template for exporting PDFs
 % J. Fritzinger, updated 8/30/22
 %
-% M. DuHain, use for 2P data analysis early November
+% M. DuHain, use for endpoint data analysis of .im2p files
 
-%% Initialize report
+
+%% Load im2p file
+currDir = pwd;
+disp("Select im2p file to load in...");
+[fileName1,filePath1] = uigetfile;              % get user input of .im2p file
+disp(strcat("Loading ",fileName1,"...")); tic;  % prints loading mesage
+load(fileName1); toc;                           % loads selected file
+
+% Initialize report
 import mlreportgen.dom.*
 import mlreportgen.report.*
 
 % Experiment information 
-mouse = "810";
-date = "2023-01-24";
+mouse = "126";
+date = "2023-07-31";
 expNum = "001";
+imDepth = "Z250";
 
 %create titles (.pdf and page title)
-report_name = strcat("m",mouse,"-",date,"-Exp",expNum,"-report");
-headingText = strcat("Tactile Stim: m",mouse," on ",date," Exp",expNum);
+report_name = strcat("m",mouse,"-",date,"-Exp",expNum,"-",imDepth,"-report");
+headingText = strcat("Tactile Stim: m",mouse," on ",date," Exp",expNum," at ",imDepth);
 
 % Initialize report
 images = {}; %hold all plots as images, need to delete when finished
@@ -50,6 +59,10 @@ append(rpt,h);
 
 
 for n=1:size(a.somaticF,1)
+    if all(isnan(a.somaticF(n,:)))
+        disp(strcat("Skipping ROI ",num2str(n)));
+        continue;
+    end
     %Responsivity
     fig1 = figure;
     title = strcat('Plot',num2str(4*n-3));
@@ -75,7 +88,7 @@ for n=1:size(a.somaticF,1)
     %ROI LOCATION
     fig3 = figure;
     title = strcat('Plot',num2str(4*n));
-    imagesc(a.gfpXCorrImg); hold on;
+    imshow(a.overlayImg); hold on;
     plot(a.somaticROIBoundaries{1,n}{1,1}(:,2),a.somaticROIBoundaries{1,n}{1,1}(:,1),'LineWidth',2,'Color',[1 0 0]);
     [plt3, images] = addToPDF(images, fig3, title, [3.5, 2.5]);
 
@@ -88,7 +101,7 @@ end
 
 np = size(a.somaticF,1);
 
-% % NOW FOR RED
+% NOW FOR RED
 % for n=1:size(a.redSomaticF,1)
 %     %Responsivity
 %     fig1 = figure;

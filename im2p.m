@@ -28,6 +28,7 @@ classdef im2p
     numFrames = NaN; %number of frames in experiment
     stimOnTimes = NaN; %tactile stimulus ON times
     stimOnFrameNum = NaN; %frames cooresponding to stim ON
+    ledTimes = NaN; %clock time when rig LED was turned ON
     stimFreqs = NaN; %tactile stimulus frequencies (Hz)
     stimAmps = NaN; %tactile stimulus amplitude (voltage)
     stimDurs = NaN; %tactile stimulus durations (ms)
@@ -35,6 +36,10 @@ classdef im2p
     imgDepth = NaN; % depth of focal plane (micrometers)
     graspTimes = NaN; %grasp times [grasp ON, grasp OFF; ...]
     graspDurs = NaN; %difference of pairwise graspON/OFF
+    lickTimes = NaN; %array of clock times when a lick was detected
+    vasculature1x = NaN; %photo of blood vessels at brain surface, pre-experiment
+    vasculature2x = NaN;
+    vasculature3x = NaN;
     
     %ROI IDENTIFICATION
     somaticROI_PixelLists = NaN; %all from CDiesters program
@@ -508,7 +513,12 @@ classdef im2p
                 outStruct.(structName).avgRespPostStim = mean(allResps(:,respCalcWin(1):respCalcWin(2)),2); % avg resp window for each trial
                 outStruct.(structName).stdRespPostStim = std(mean(allResps(:,respCalcWin(1):respCalcWin(2)),2)); %std of avgResp2secWin
                 outStruct.(structName).semRespPostStim = std(mean(allResps(:,respCalcWin(1):respCalcWin(2)),2))/sqrt(size(allResps,1));
-                [P,H,STATS] = ranksum(outStruct.(structName).avgRespPostStim,outStruct.(structName).preStim);
+                try 
+                    [P,H,STATS] = ranksum(outStruct.(structName).avgRespPostStim,outStruct.(structName).preStim);
+                catch
+                    disp(strcat("Error for Freq. ",num2str(ns)));
+                end
+                    
                 if max(contains(fieldnames(STATS),'zval')) == 1
                     outStruct.(structName).responsivityZ = STATS.zval;
                 else
@@ -775,12 +785,12 @@ classdef im2p
             %add subbplots for traces per frequency.
             for nn = 1 : 6
                 subplot(2,3,nn); hold on;
-                if respFreqZP(nn,1) > 1.96 || respFreqZP(nn,1) < -1.96
+                if respFreqZP(nn,2) < 0.05
                     shadedErrorBar(out.xRange,out.(fieldNames{nn}).avgTrace,out.(fieldNames{nn}).semTraces,...
                         'lineProps',{'g-','markerfacecolor',[0.9290 0.6940 0.1250]});
                 else 
                     shadedErrorBar(out.xRange,out.(fieldNames{nn}).avgTrace,out.(fieldNames{nn}).semTraces,...
-                        'lineProps',{'g-','markerfacecolor',[0.9290 0.6940 0.1250]});
+                        'lineProps',{'r-','markerfacecolor',[0.9290 0.6940 0.1250]});
                 end
                 titleText = strcat("Response at ",fieldNames{nn}," Hz");
                 title(titleText);

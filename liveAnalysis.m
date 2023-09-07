@@ -1,7 +1,4 @@
-% LIVE ANALYSIS
-% first pass of script to complete analysis on folder of .tif 2P images.
-% 2023-02-02
-
+function [gfpStack] = liveAnalysis(~)
 
 %% Constants
 
@@ -20,8 +17,10 @@ fileNames = {inputFiles.name};
 imInfo = imfinfo(fileNames{1}); %get info on first tif
 Xpx = imInfo(1).Width; %X pixels
 Ypx = imInfo(1).Height; %Y pixels
-numFrames = length(inputFiles); %Num of available frames
+numFrames = floor(length(inputFiles)); %Num of available frames
 rfpTrace = zeros(numFrames,1);
+rfpStack = zeros(Xpx,Ypx,numFrames);
+gfpStack = zeros(Xpx,Ypx,numFrames);
 rfpImg = zeros(Xpx,Ypx);
 gfpImg = zeros(Xpx,Ypx);
 
@@ -32,10 +31,12 @@ disp("calculating stim times...");
 tic;
 for k = 1 : numFrames
     thisFileName = fileNames{k};
-    rfpStack(:,:,k) = imread(thisFileName,1);
+    rfpStack(:,:,k) = imread(thisFileName,2);
+    gfpStack(:,:,k) = imread(thisFileName,1);
     rfpImg = imread(thisFileName,2);
     rfpTrace(k) = mean(rfpImg,'all');
 end
+gfpMean = squeeze(mean(gfpStack,3));
 
 
 %% Process stim times
@@ -63,6 +64,7 @@ for j = 1 : size(I,1)
     lastF = I(j) + frameRate*postStimWin;
     frameList = [firstF:lastF];
     if lastF > numFrames
+        gfpTraces(:,:,j) = [];
         break;
     end
     %loop through and extract gfp frames in this window
@@ -79,7 +81,23 @@ end
 xs = [-1*preStimWin+1/frameRate:1/frameRate:postStimWin];
 toc;
 
-%Plotting section
+
+%% Plotting Section
+
+% Central image of GFP field
+figure('Color',[1,1,1]);
+subplot(3,3,5); 
+imagesc(gfpMean);
+hold on; ca = gca;
+colormap(ca,"gray");
+ca.XTickLabel = [];
+ca.YTickLabel = [];
+plot([floor(ca.XLim(2)/2) floor(ca.XLim(2)/2)],[ca.YLim(1) ca.YLim(2)],'g-');
+plot([ca.XLim(1) ca.XLim(2)],[floor(ca.YLim(2)/2) floor(ca.YLim(2)/2)],'g-');
+hold off;
+
+
+%calculation section
 meanTrace1 = squeeze(mean(gfpTraces(1,:,:),3));
 meanTrace1 = meanTrace1 - mean(meanTrace1(1:30));
 semTrace1 = std(squeeze(gfpTraces(1,:,:))')/sqrt(size(gfpTraces,3));
@@ -96,20 +114,43 @@ meanTrace4 = squeeze(mean(gfpTraces(4,:,:),3));
 meanTrace4 = meanTrace4 - mean(meanTrace4(1:30));
 semTrace4 = std(squeeze(gfpTraces(4,:,:))')/sqrt(size(gfpTraces,3));
 
-figure;
-shadedErrorBar(xs,meanTrace1,semTrace1); hold on;
+% plotting PSTH section
+
+subplot(3,3,1); %upper left
+shadedErrorBar(xs,meanTrace1,semTrace1);
+hold on; ca = gca;
+plot([0 0],[ca.YLim(1) ca.YLim(2)],'r-');
+xlabel("Time (sec.)");
+ylabel("Norm. DeltaF/F");
+hold off;
+
+subplot(3,3,3); %upper right
 shadedErrorBar(xs,meanTrace2,semTrace2);
+hold on; ca = gca;
+plot([0 0],[ca.YLim(1) ca.YLim(2)],'r-');
+xlabel("Time (sec.)");
+ylabel("Norm. DeltaF/F");
+hold off;
+
+subplot(3,3,7); %lower left
 shadedErrorBar(xs,meanTrace3,semTrace3);
+hold on; ca = gca;
+plot([0 0],[ca.YLim(1) ca.YLim(2)],'r-');
+xlabel("Time (sec.)");
+ylabel("Norm. DeltaF/F");
+hold off;
+
+subplot(3,3,9); %lower right
 shadedErrorBar(xs,meanTrace4,semTrace4);
-ca = gca;
-plot([0 0],[ca.YLim(1) ca.YLim(2)],'r-'); 
-title("Quick PSTH, 4 quadrants in field (Mean + SEM)");
+hold on; ca = gca;
+plot([0 0],[ca.YLim(1) ca.YLim(2)],'r-');
 xlabel("Time (sec.)");
 ylabel("Norm. DeltaF/F");
 hold off;
 
 
 
+end
 
 
 
