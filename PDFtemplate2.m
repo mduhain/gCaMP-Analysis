@@ -8,13 +8,13 @@ import mlreportgen.dom.*
 import mlreportgen.report.*
 
 % Experiment information 
-mouse = "810";
-date = "2023-01-24";
-expNum = "001";
+mouse = "172";
+date = "2023-07-27";
+expDepth = "103";
 
 %create titles (.pdf and page title)
-report_name = strcat("m",mouse,"-",date,"-Exp",expNum,"-report");
-headingText = strcat("Tactile Stim: m",mouse," on ",date," Exp",expNum);
+report_name = strcat("m",mouse,"-",date,"-Exp",expDepth,"-report");
+headingText = strcat("Tactile Stim: m",mouse," on ",date," Depth",expDepth);
 
 % Initialize report
 images = {}; %hold all plots as images, need to delete when finished
@@ -50,34 +50,41 @@ append(rpt,h);
 
 
 for n=1:size(a.somaticF,1)
+
+    %sanity check for blank data
+    if all(isnan(a.somaticF(n,:)))
+        disp(strcat("Found trial of all NaNs, skipping soma ",num2str(n)));
+        continue
+    end
+
     %Responsivity
     fig1 = figure;
-    title = strcat('Plot',num2str(4*n-3));
+    title0 = strcat('Plot',num2str(4*n-3));
     %[tuningMat,tuningMatSTD,yRange] = a.psth2(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,4);
     out = a.getResponsivity(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,1);
-    [plt1, images] = addToPDF(images, fig1, title, [8.5, 3]);
+    [plt1, images] = addToPDF(images, fig1, title0, [8.5, 3]);
     append(rpt, plt1);
 
     %PSTH by Freq.
     fig2 = figure;
-    title = strcat('Plot',num2str(4*n-2));
+    title1 = strcat('Plot',num2str(4*n-2));
     %[tuningMat,tuningMatSTD,yRange] = a.psth2(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,4);
     out = a.getTraces(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,1);
-    [plt2, images] = addToPDF(images, fig2, title, [8.5, 4]);
+    [plt2, images] = addToPDF(images, fig2, title1, [8.5, 4]);
     append(rpt, plt2);
 
     %AUDIO-STIM RESPONSE
     fig4 = figure;
-    title = strcat('Plot',num2str(4*n-1));
+    title2 = strcat('Plot',num2str(4*n-1));
     a.psthAudioTrials(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,out.yAxMinMax);
-    [plt4, images] = addToPDF(images, fig4, title, [3.5, 2.5]);
+    [plt4, images] = addToPDF(images, fig4, title2, [3.5, 2.5]);
 
     %ROI LOCATION
     fig3 = figure;
-    title = strcat('Plot',num2str(4*n));
+    title3 = strcat('Plot',num2str(4*n));
     imagesc(a.gfpXCorrImg); hold on;
     plot(a.somaticROIBoundaries{1,n}{1,1}(:,2),a.somaticROIBoundaries{1,n}{1,1}(:,1),'LineWidth',2,'Color',[1 0 0]);
-    [plt3, images] = addToPDF(images, fig3, title, [3.5, 2.5]);
+    [plt3, images] = addToPDF(images, fig3, title3, [3.5, 2.5]);
 
     %JOIN TUNING CURVE AND AUDIO-STIM RESPONSE
     table = Table({plt3,plt4});
@@ -88,43 +95,43 @@ end
 
 np = size(a.somaticF,1);
 
-% % NOW FOR RED
-% for n=1:size(a.redSomaticF,1)
-%     %Responsivity
-%     fig1 = figure;
-%     title = strcat('Plot',num2str(4*n-3+np));
-%     %[tuningMat,tuningMatSTD,yRange] = a.psth2(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,4);
-%     out = a.getResponsivity(a.redSomaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,1);
-%     [plt1, images] = addToPDF(images, fig1, title, [8.5, 3]);
-%     append(rpt, plt1);
-% 
-%     %PSTH by Freq.
-%     fig2 = figure;
-%     title = strcat('Plot',num2str(4*n-2+np));
-%     %[tuningMat,tuningMatSTD,yRange] = a.psth2(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,4);
-%     out = a.getTraces(a.redSomaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,1);
-%     [plt2, images] = addToPDF(images, fig2, title, [8.5, 4]);
-%     append(rpt, plt2);
-% 
-%     %AUDIO-STIM RESPONSE
-%     fig4 = figure;
-%     title = strcat('Plot',num2str(4*n-1+np));
-%     a.psthAudioTrials(a.redSomaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,out.yAxMinMax);
-%     [plt4, images] = addToPDF(images, fig4, title, [3.5, 2.5]);
-% 
-%     %ROI LOCATION
-%     fig3 = figure;
-%     title = strcat('Plot',num2str(4*n+np));
-%     imagesc(a.gfpXCorrImg); hold on;
-%     plot(a.redSomaticROIBoundaries{1,n}{1,1}(:,2),a.redSomaticROIBoundaries{1,n}{1,1}(:,1),'LineWidth',2,'Color',[1 0 0]);
-%     [plt3, images] = addToPDF(images, fig3, title, [3.5, 2.5]);
-% 
-%     %JOIN TUNING CURVE AND AUDIO-STIM RESPONSE
-%     table = Table({plt3,plt4});
-%     table.Style = {Width('100%'), ResizeToFitContents(false)};
-%     table.BorderColor = 'White';
-%     append(rpt, table);
-% end
+% NOW FOR RED
+for n=1:size(a.redSomaticF,1)
+    %Responsivity
+    fig1 = figure;
+    title0 = strcat('Plot',num2str(4*n-3+np));
+    %[tuningMat,tuningMatSTD,yRange] = a.psth2(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,4);
+    out = a.getResponsivity(a.redSomaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,1);
+    [plt1, images] = addToPDF(images, fig1, title0, [8.5, 3]);
+    append(rpt, plt1);
+
+    %PSTH by Freq.
+    fig2 = figure;
+    title1 = strcat('Plot',num2str(4*n-2+np));
+    %[tuningMat,tuningMatSTD,yRange] = a.psth2(a.somaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,4);
+    out = a.getTraces(a.redSomaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,1);
+    [plt2, images] = addToPDF(images, fig2, title1, [8.5, 4]);
+    append(rpt, plt2);
+
+    %AUDIO-STIM RESPONSE
+    fig4 = figure;
+    title2 = strcat('Plot',num2str(4*n-1+np));
+    a.psthAudioTrials(a.redSomaticFDT(n,:),a.stimOnFrameNum,a.stimFreqs,a.audioTrials,n,out.yAxMinMax);
+    [plt4, images] = addToPDF(images, fig4, title2, [3.5, 2.5]);
+
+    %ROI LOCATION
+    fig3 = figure;
+    title3 = strcat('Plot',num2str(4*n+np));
+    imagesc(a.gfpXCorrImg); hold on;
+    plot(a.redSomaticROIBoundaries{1,n}{1,1}(:,2),a.redSomaticROIBoundaries{1,n}{1,1}(:,1),'LineWidth',2,'Color',[1 0 0]);
+    [plt3, images] = addToPDF(images, fig3, title3, [3.5, 2.5]);
+
+    %JOIN TUNING CURVE AND AUDIO-STIM RESPONSE
+    table = Table({plt3,plt4});
+    table.Style = {Width('100%'), ResizeToFitContents(false)};
+    table.BorderColor = 'White';
+    append(rpt, table);
+end
 
 
 

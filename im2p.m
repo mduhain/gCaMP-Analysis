@@ -28,6 +28,7 @@ classdef im2p
     numFrames = NaN; %number of frames in experiment
     stimOnTimes = NaN; %tactile stimulus ON times
     stimOnFrameNum = NaN; %frames cooresponding to stim ON
+    ledTimes = NaN; %clock time when rig LED was turned ON
     stimFreqs = NaN; %tactile stimulus frequencies (Hz)
     stimAmps = NaN; %tactile stimulus amplitude (voltage)
     stimDurs = NaN; %tactile stimulus durations (ms)
@@ -35,6 +36,10 @@ classdef im2p
     imgDepth = NaN; % depth of focal plane (micrometers)
     graspTimes = NaN; %grasp times [grasp ON, grasp OFF; ...]
     graspDurs = NaN; %difference of pairwise graspON/OFF
+    lickTimes = NaN; %array of clock times when a lick was detected
+    vasculature1x = NaN; %photo of blood vessels at brain surface, pre-experiment
+    vasculature2x = NaN;
+    vasculature3x = NaN;
     
     %ROI IDENTIFICATION
     somaticROI_PixelLists = NaN; %all from CDiesters program
@@ -438,6 +443,10 @@ classdef im2p
             %  - Ranksum's z-stat is then used in freq. tuning curve
             %  - Also creates freq. tuning curve from dF/F
             
+            if all(isnan(fSignal))
+                disp("Found trial of all NaNs, skipping...");
+                return
+            end
             
             % generate key map for seperating freq / trials
             preStimT = 1; %sec before sitm on;
@@ -508,7 +517,12 @@ classdef im2p
                 outStruct.(structName).avgRespPostStim = mean(allResps(:,respCalcWin(1):respCalcWin(2)),2); % avg resp window for each trial
                 outStruct.(structName).stdRespPostStim = std(mean(allResps(:,respCalcWin(1):respCalcWin(2)),2)); %std of avgResp2secWin
                 outStruct.(structName).semRespPostStim = std(mean(allResps(:,respCalcWin(1):respCalcWin(2)),2))/sqrt(size(allResps,1));
-                [P,H,STATS] = ranksum(outStruct.(structName).avgRespPostStim,outStruct.(structName).preStim);
+                try 
+                    [P,H,STATS] = ranksum(outStruct.(structName).avgRespPostStim,outStruct.(structName).preStim);
+                catch
+                    disp(strcat("Error for Freq. ",num2str(ns)));
+                end
+                    
                 if max(contains(fieldnames(STATS),'zval')) == 1
                     outStruct.(structName).responsivityZ = STATS.zval;
                 else
@@ -676,8 +690,11 @@ classdef im2p
             
             
             % Main loop through all frequencies
+            allData = {};      
+            repNumber = 35; %max number of repetitions per stimulus;
             for ns = 1 : length(allFreqs)
                 %subplot(spX,spY,ns); hold on;
+                myDataAvg = [];
                 structName = strcat('f',num2str(allFreqs(ns)));
                 frame_times = floor(stimFrameTimes/3);
                 frame_times(frame_times == 0) = [];
@@ -715,25 +732,45 @@ classdef im2p
                 outStruct.(structName).avgRespPostStim = mean(allResps(:,respCalcWin(1):respCalcWin(2)),2); % avg resp window for each trial
                 outStruct.(structName).stdRespPostStim = std(mean(allResps(:,respCalcWin(1):respCalcWin(2)),2)); %std of avgResp2secWin
                 outStruct.(structName).semRespPostStim = std(mean(allResps(:,respCalcWin(1):respCalcWin(2)),2))/sqrt(size(allResps,1));
-                [P,H,STATS] = ranksum(outStruct.(structName).avgRespPostStim,outStruct.(structName).preStim);
+
+                myData = outStruct.(structName).avgRespPostStim;
+%                 [P,H,STATS] = ranksum(outStruct.(structName).avgRespPostStim,outStruct.(structName).preStim);
+                [P,H,STATS] = signrank(outStruct.(structName).avgRespPostStim);
                 if max(contains(fieldnames(STATS),'zval')) == 1
                     outStruct.(structName).responsivityZ = STATS.zval;
                 else
                     outStruct.(structName).responsivityZ = NaN;
                 end
                 outStruct.(structName).responsivityP = P;
+                if length(myData) > repNumber
+                    repNumber = length(myData);
+                end
+                if length(myData) < repNumber
+                    myData = cat(1,myData, nan(repNumber-length(myData),1));
+                else
+                end
+                allData = cat(2,allData,myData);
             end
             outStruct.xRange = xRange;
+
+            outStruct.isSelectiveP = kruskalwallis(cell2mat(allData),[],'off');
+            if outStruct.isSelectiveP < 0.05
+                [~,indx] = max(cellfun(@mean,allData));
+                outStruct.prefFreq = allFreqs(indx);
+            else
+                outStruct.prefFreq = NaN;
+            end
             out = outStruct;
+
             
             
             % START MannyanalysisNEW
             fieldNames = fieldnames(out);
-            fieldNames(end) = [];
+            fieldNames(end-1:end) = [];
             out.pVals = zeros(1,length(fieldNames));
             out.zVals = zeros(1,length(fieldNames));
             matAvgFreqTrials = NaN(6,50);
-            for nn = 1:length(fieldNames)
+            for nn = 1: length(allFreqs)
                 respFreqZP(nn,1) = out.(fieldNames{nn}).responsivityZ;
                 respFreqZP(nn,2) = out.(fieldNames{nn}).responsivityP;
                 matAvgFreqTrials(nn,1:size(out.(fieldNames{nn}).avgRespPostStim,1)) = out.(fieldNames{nn}).avgRespPostStim;
@@ -773,29 +810,29 @@ classdef im2p
             axMinMax(2) = axMinMax(2)+(diff(axMinMax)/10); %pad 10%
 
             %add subbplots for traces per frequency.
-            for nn = 1 : 6
-                subplot(2,3,nn); hold on;
-                if respFreqZP(nn,1) > 1.96 || respFreqZP(nn,1) < -1.96
-                    shadedErrorBar(out.xRange,out.(fieldNames{nn}).avgTrace,out.(fieldNames{nn}).semTraces,...
-                        'lineProps',{'g-','markerfacecolor',[0.9290 0.6940 0.1250]});
-                else 
-                    shadedErrorBar(out.xRange,out.(fieldNames{nn}).avgTrace,out.(fieldNames{nn}).semTraces,...
-                        'lineProps',{'g-','markerfacecolor',[0.9290 0.6940 0.1250]});
-                end
-                titleText = strcat("Response at ",fieldNames{nn}," Hz");
-                title(titleText);
-                xlabel("Time Post-Stim (sec.)");
-                ylabel("dF/F");
-                ax = gca;
-                ax.YLim = axMinMax;
-                yLoc = ax.YLim(2)-((ax.YLim(2)-ax.YLim(1))/10);
-                plot([0 0],[ax.YLim(1) ax.YLim(2)],'b--');
-                plot([respWindow respWindow],[ax.YLim(1) ax.YLim(2)],'b--');
-                figText = strcat("Z-Val = ",num2str(respFreqZP(nn,1)));
-                figText = [figText;strcat("P-Val = ",num2str(respFreqZP(nn,2)))];
-                text(-0.8,yLoc,figText);
-                hold off;
-            end
+%             for nn = 1 : 6
+%                 subplot(2,3,nn); hold on;
+%                 if respFreqZP(nn,2) < 0.05
+%                     shadedErrorBar(out.xRange,out.(fieldNames{nn}).avgTrace,out.(fieldNames{nn}).semTraces,...
+%                         'lineProps',{'g-','markerfacecolor',[0.9290 0.6940 0.1250]});
+%                 else 
+%                     shadedErrorBar(out.xRange,out.(fieldNames{nn}).avgTrace,out.(fieldNames{nn}).semTraces,...
+%                         'lineProps',{'r-','markerfacecolor',[0.9290 0.6940 0.1250]});
+%                 end
+%                 titleText = strcat("Response at ",fieldNames{nn}," Hz");
+%                 title(titleText);
+%                 xlabel("Time Post-Stim (sec.)");
+%                 ylabel("dF/F");
+%                 ax = gca;
+%                 ax.YLim = axMinMax;
+%                 yLoc = ax.YLim(2)-((ax.YLim(2)-ax.YLim(1))/10);
+%                 plot([0 0],[ax.YLim(1) ax.YLim(2)],'b--');
+%                 plot([respWindow respWindow],[ax.YLim(1) ax.YLim(2)],'b--');
+%                 figText = strcat("Z-Val = ",num2str(respFreqZP(nn,1)));
+%                 figText = [figText;strcat("P-Val = ",num2str(respFreqZP(nn,2)))];
+%                 text(-0.8,yLoc,figText);
+%                 hold off;
+%             end
             
             %add additional outputs
             outStruct.respFreqZP = respFreqZP;
@@ -809,7 +846,8 @@ classdef im2p
         end
         %------------------------------------------------------------------
         function r = multiplyBy(obj,n)
-        r = [obj.Value]*n;
+            %example internal function 
+            r = [obj.Value]*n;
         end
     end
 end
